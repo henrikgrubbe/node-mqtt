@@ -1,31 +1,29 @@
 import {Service} from '../model/service';
-import fetch from 'node-fetch';
-import express from 'express';
+import express, {Request, Response} from 'express';
 import cors from 'cors';
-import {Product} from "../model/product";
+import {MqttService} from './mqtt-service';
 
 export class ExpressService implements Service {
-    public readonly name = "Express";
+    public readonly name = 'Express';
     public readonly environmentVariables = [
         'PORT'
     ];
 
-    private static readonly URL_PREFIX = 'https://fantastiskefroe.dk';
-    private static readonly ALL_PRODUCTS_URL = ExpressService.URL_PREFIX + '/collections/all-products';
+    constructor(mqttService: MqttService) {
+        this.mqttService = mqttService;
+    }
 
     private server;
+    private mqttService: MqttService;
 
     public init(): Promise<void> {
         const app = express();
         const port = process.env.PORT;
 
-        const corsOptions = {
-            origin: ["http://localhost:8080", /\.fantastiskefroe\.dk$/]
-        };
+        app.use(express.json());
+        app.use(cors());
 
-        app.use(cors(corsOptions));
-
-        app.get('/', this.getAllProducts.bind(this));
+        app.post('/publish/:topic', this.publish.bind(this));
 
         return new Promise(resolve => {
             this.server = app.listen(port, () => {
@@ -35,46 +33,26 @@ export class ExpressService implements Service {
         });
     }
 
+    private publish(req: Request, res: Response) {
+        const topic = req.params.topic;
+        const body = req.body;
+        const bodyString = JSON.stringify(body);
+
+        console.log('Received topic body', topic, bodyString);
+
+        this.mqttService.publish(topic, bodyString)
+            .then((err) => {
+                if (err) {
+                    res.sendStatus(500);
+                } else {
+                    res.sendStatus(200);
+                }
+            });
+    }
+
     public destruct(): Promise<void> {
         return new Promise(resolve => {
             this.server.close(() => resolve());
         });
-    }
-
-    private getAllProducts(_req, res) {
-        this.fetchProducts()
-            .then(products => res.json(products));
-    }
-
-    private async fetchProducts(): Promise<Product[]> {
-        const options = {
-            method: 'GET'
-        };
-
-        return fetch(ExpressService.ALL_PRODUCTS_URL, options)
-            .then(response => response.text())
-            .then(ExpressService.mapProducts)
-            .catch(error => {
-                console.error('error', error);
-                return [];
-            });
-    }
-
-    private static mapProducts(input: string): Product[] {
-        const parsed: {products: Record<string, { id: string, title: string, handle: string, url: string, image: string, variants }>} = JSON.parse(input);
-
-        const result: Product[] = [];
-        for (const value of Object.values(parsed.products)) {
-            result.push({
-                id: value.id,
-                title: value.title,
-                handle: value.handle,
-                url: ExpressService.URL_PREFIX + value.url,
-                imageUrl: value.image,
-                variants: value.variants
-            });
-        }
-
-        return result;
     }
 }

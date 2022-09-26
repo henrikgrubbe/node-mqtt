@@ -1,10 +1,13 @@
 import {ServiceRegistry} from './config/service-registry';
 import {SentryService} from './service/sentry-service';
 import {ExpressService} from './service/express-service';
+import {MqttService} from './service/mqtt-service';
 
 const serviceRegistry = new ServiceRegistry();
 serviceRegistry.registerService(new SentryService());
-serviceRegistry.registerService(new ExpressService());
+const mqttService = new MqttService();
+serviceRegistry.registerService(mqttService);
+serviceRegistry.registerService(new ExpressService(mqttService));
 
 serviceRegistry.initServices();
 
