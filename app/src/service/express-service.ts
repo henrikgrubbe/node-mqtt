@@ -43,9 +43,9 @@ export class ExpressService implements Service {
         this.mqttService.publish(topic, bodyString)
             .then((err) => {
                 if (err) {
-                    res.sendStatus(500);
+                    res.json({success: false, error: err});
                 } else {
-                    res.sendStatus(200);
+                    res.json({success: true});
                 }
             });
     }
